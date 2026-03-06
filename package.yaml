@@ -1,0 +1,31 @@
+name: Paskal
+version: 0.1.0.0
+synopsis: A simple Pascal interpreter
+description: No discription yet
+author: Artem Kulikov <artkul204@gmail.com>
+maintainer: Artem Kulikov <artkul204@gmail.com>
+category: Development
+extra-source-files:
+  - CHANGELOG.md
+
+ghc-options: -Wall
+
+dependencies:
+  - base >= 4.13 && < 5
+
+library:
+  source-dirs: lib
+  exposed-modules:
+    - Paskal
+  other-modules:
+    - Token
+    - AST
+    - Lexer
+    - Parser
+    - Executor
+
+executable:
+  main: Main.hs
+  dependencies:
+    - Paskal
+  source-dirs: app
