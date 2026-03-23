@@ -1,0 +1,6 @@
+program Answer;
+var answer : integer;
+begin
+    answer := 42;
+    writeln(answer)
+end.

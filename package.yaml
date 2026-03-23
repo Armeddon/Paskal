@@ -12,6 +12,9 @@ ghc-options: -Wall
 
 dependencies:
   - base >= 4.13 && < 5
+  - extra
+  - mtl
+  - safe
 
 library:
   source-dirs: lib
@@ -23,6 +26,7 @@ library:
     - Lexer
     - Parser
     - Executor
+    - Util
 
 executable:
   main: Main.hs
