@@ -6,17 +6,17 @@ import Safe (lastMay)
 import Token
 import Util
 
-tokenize :: String -> Either [Pos String] [Pos Token]
-tokenize input = let
-    enumerated = enumerateSymbols input
-    eofPosition = maybe (0, 0) fst $ lastMay enumerated
+tokenize :: Filename -> String -> Either [Pos String] [Pos Token]
+tokenize file input = let
+    enumerated = enumerateSymbols file input
+    eofPosition = maybe (file, 0, 0) (\(Pos p _) -> p) $ lastMay enumerated
     withSurroundedSymbols = surroundSymbols enumerated
-    wordSplit = wordsBy (isSpace . snd) withSurroundedSymbols
+    wordSplit = wordsBy (isSpace . (\(Pos _ c) -> c)) withSurroundedSymbols
     (lefts, rights) = partitionEithers $ map (posBoth . tokenizeWord) wordSplit
-    in if not $ null lefts then Left lefts else Right $ rights ++ [(eofPosition, EOF)]
+    in if not $ null lefts then Left lefts else Right $ rights ++ [(Pos eofPosition EOF)]
 
 tokenizeWord :: [Pos Char] -> Pos (Either String Token)
-tokenizeWord input@((pos, _):_) = (pos, case map snd input of
+tokenizeWord input@((Pos pos _):_) = Pos pos $ case map (\(Pos _ c) -> c) input of
     "program" -> Right ProgramKeyword
     "var"     -> Right VarKeyword
     "begin"   -> Right BeginKeyword
@@ -58,20 +58,19 @@ tokenizeWord input@((pos, _):_) = (pos, case map snd input of
     string | all isDigit string -> Right . IntegerConstant $ read string
            | all (\c -> isAlphaNum c || c == '_') string -> Right $ Identifier string
            | otherwise -> Left string
-    )
-tokenizeWord [] = ((0, 0), Left "")
+tokenizeWord [] = Pos (Filename "", 0, 0) $ Left ""
 
-enumerateSymbols :: String -> [Pos Char]
-enumerateSymbols = tail . scanl (\((r, c), _) chr -> if chr == '\n' then ((r+1, 1), chr) else ((r, c+1), chr)) ((1, 0), '_')
+enumerateSymbols :: Filename -> String -> [Pos Char]
+enumerateSymbols f = tail . scanl (\(Pos (_, r, c) _) chr -> if chr == '\n' then Pos (f, r+1, 1) chr else Pos (f, r, c+1) chr) (Pos (f, 1, 0) '_')
 
 surroundSymbols :: [Pos Char] -> [Pos Char]
 surroundSymbols text = foldr surroundSymbol text ".,();"
 
 surroundSymbol :: Char -> [Pos Char] -> [Pos Char]
-surroundSymbol c1 ((pos, c2):rest) | c1 == c2  = [((0, 0), ' '), (pos, c1), ((0, 0), ' ')] ++ surroundSymbol c1 rest
-                                   | otherwise = (pos, c2) : surroundSymbol c1 rest
+surroundSymbol c1 ((Pos pos c2):rest) | c1 == c2  = [Pos (Filename "", 0, 0) ' ', Pos pos c1, Pos (Filename "", 0, 0) ' '] ++ surroundSymbol c1 rest
+                                   | otherwise = Pos pos c2 : surroundSymbol c1 rest
 surroundSymbol _ [] = []
 
 posBoth :: Pos (Either a b) -> Either (Pos a) (Pos b)
-posBoth (pos, Left x) = Left (pos, x)
-posBoth (pos, Right x) = Right (pos, x)
+posBoth (Pos pos (Left x)) = Left $ Pos pos x
+posBoth (Pos pos (Right x)) = Right $ Pos pos x

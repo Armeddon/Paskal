@@ -26,6 +26,7 @@ library
       Lexer
       Parser
       Executor
+      Analyzer
       Util
   hs-source-dirs:
       lib

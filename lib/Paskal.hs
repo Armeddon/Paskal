@@ -1,17 +1,25 @@
-module Paskal (interpret) where
+module Paskal (interpret, Filename (..)) where
 import Control.Monad.Writer (runWriter)
 import Token
 import Lexer
 import Parser
 import Executor
+import Analyzer
 import Util
 
-interpret :: String -> IO ()
-interpret = either printInvalidTokens interpretTokens . tokenize
+interpret :: Filename -> String -> IO ()
+interpret file = either printInvalidTokens interpretTokens . tokenize file
 
 printInvalidTokens :: [Pos String] -> IO ()
-printInvalidTokens = mapM_ $ putStrLn . (\(p, t) -> formatError p $ "Invalid token: " ++ t)
+printInvalidTokens = mapM_ $ putStrLn . (\(Pos p t) -> formatError p $ "Invalid token: " ++ t)
 
 interpretTokens :: [Pos Token] -> IO ()
-interpretTokens tokens = let (ast, logs) = runWriter $ parse tokens
-    in mapM_ putStrLn logs >> (sequenceA . fmap execute) ast >> return ()
+interpretTokens tokens = do
+    let (ast, logs) = runWriter $ parse tokens
+        (ast', logs') = case ast of
+            Just x -> runWriter $ analyze x
+            Nothing -> (Nothing, [])
+    mapM_ putStrLn logs
+    mapM_ putStrLn logs'
+    _ <- (sequenceA . fmap execute) ast'
+    return ()

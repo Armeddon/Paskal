@@ -1,10 +1,12 @@
 module Util where
 import Control.Monad.Writer (Writer, tell)
 
-formatError :: (Int, Int) -> String -> String
-formatError (row, column) message = concat $ [show row, ":", show column, ": ", message]
+formatError :: (Filename, Int, Int) -> String -> String
+formatError (Filename file, row, column) message = concat $ [file, ":", show row, ":", show column, ": ", message]
 
-tellError :: (Int, Int) -> String -> Writer [String] ()
+tellError :: (Filename, Int, Int) -> String -> Writer [String] ()
 tellError position = tell . (:[]) . formatError position
 
-type Pos a = ((Int, Int), a)
+data Pos a = Pos (Filename, Int, Int) a
+
+newtype Filename = Filename String
