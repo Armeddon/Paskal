@@ -1,0 +1,6 @@
+program Geometry;
+var geometry : integer;
+begin
+    geometry := 3 * 3 + 4 * 4 - 5 * 5;
+    writeln(geometry = 0)
+end.

@@ -11,15 +11,13 @@ interpret :: Filename -> String -> IO ()
 interpret file = either printInvalidTokens interpretTokens . tokenize file
 
 printInvalidTokens :: [Pos String] -> IO ()
-printInvalidTokens = mapM_ $ putStrLn . (\(Pos p t) -> formatError p $ "Invalid token: " ++ t)
+printInvalidTokens = mapM_ $ putStrLn . \(Pos p t) -> formatError p $ "Invalid token: " ++ t
 
 interpretTokens :: [Pos Token] -> IO ()
 interpretTokens tokens = do
     let (ast, logs) = runWriter $ parse tokens
-        (ast', logs') = case ast of
-            Just x -> runWriter $ analyze x
-            Nothing -> (Nothing, [])
+        (ast', logs') = maybe (Nothing, []) (runWriter . analyze) ast
     mapM_ putStrLn logs
     mapM_ putStrLn logs'
-    _ <- (sequenceA . fmap execute) ast'
+    _ <- sequenceA $ fmap execute ast'
     return ()

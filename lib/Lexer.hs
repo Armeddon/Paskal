@@ -11,7 +11,7 @@ tokenize file input = let
     enumerated = enumerateSymbols file input
     eofPosition = maybe (file, 0, 0) (\(Pos p _) -> p) $ lastMay enumerated
     withSurroundedSymbols = surroundSymbols enumerated
-    wordSplit = wordsBy (isSpace . (\(Pos _ c) -> c)) withSurroundedSymbols
+    wordSplit = wordsBy (isSpace . \(Pos _ c) -> c) withSurroundedSymbols
     (lefts, rights) = partitionEithers $ map (posBoth . tokenizeWord) wordSplit
     in if not $ null lefts then Left lefts else Right $ rights ++ [(Pos eofPosition EOF)]
 

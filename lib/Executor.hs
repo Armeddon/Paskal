@@ -24,7 +24,7 @@ executeOperator vt m (AssignmentOperator name expr) = do
     case result of
         Left msg -> printError msg >> return m
         Right value -> return $ do
-            if isJust $ find (typeOf value ==) $ lookup name vt
+            if isJust $ find (typeOfConstant value ==) $ lookup name vt
             then (name, value) : filter ((/= name) . fst) m
             else m
 executeOperator _ m (OutputOperator []) = return m
@@ -33,7 +33,7 @@ executeOperator vt m (OutputOperator (expr:exprs)) = do
     case result of
         Left msg -> printError msg >> return m
         Right value -> printConstant value >> executeOperator vt m (OutputOperator exprs)
-executeOperator _ m _ = undefined
+executeOperator _ _ _ = undefined
 
 evaluateExpression :: Expression -> Memory -> ErrorProne Constant
 evaluateExpression (SimpleExpression expr) = evaluateSumExpression expr

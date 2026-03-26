@@ -26,6 +26,6 @@ data BasicExpression = NameExpression Name
 data MultiplicationOperation = Multiply | Divide | Modulus | And
 data Constant = IntegerConstant Int | BooleanConstant Bool
 
-typeOf :: Constant -> Type
-typeOf (IntegerConstant _) = IntegerType
-typeOf (BooleanConstant _) = BooleanType
+typeOfConstant :: Constant -> Type
+typeOfConstant (IntegerConstant _) = IntegerType
+typeOfConstant (BooleanConstant _) = BooleanType

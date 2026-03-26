@@ -2,7 +2,7 @@ module Util where
 import Control.Monad.Writer (Writer, tell)
 
 formatError :: (Filename, Int, Int) -> String -> String
-formatError (Filename file, row, column) message = concat $ [file, ":", show row, ":", show column, ": ", message]
+formatError (Filename file, row, column) message = concat $ [file, ":", show row, ":", show column, ": error: ", message]
 
 tellError :: (Filename, Int, Int) -> String -> Writer [String] ()
 tellError position = tell . (:[]) . formatError position
