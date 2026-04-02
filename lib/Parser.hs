@@ -10,15 +10,15 @@ import Data.Maybe (isJust, fromJust)
 import Control.Monad (when)
 
 parse :: [Pos Token] -> Writer [String] (Maybe AST)
-parse ((Pos _ ProgramKeyword) : (Pos _ (Identifier name)) : (Pos _ Semicolon) : rest) = do
+parse ((Pos _ ProgramKeyword) : (Pos pos (Identifier name)) : (Pos _ Semicolon) : rest) = do
     (variableSection, rest') <- parseVariableSection rest
     operatorSection <- parseOperatorSection rest'
-    return $ pure (AST (Name name)) <*> variableSection <*> operatorSection
-parse ((Pos _ ProgramKeyword) : (Pos _ (Identifier name)) : (Pos pos _) : rest) = do
+    return $ pure (AST (Pos pos $ Name name)) <*> variableSection <*> operatorSection
+parse ((Pos _ ProgramKeyword) : (Pos namePos (Identifier name)) : (Pos pos _) : rest) = do
     tellError pos "Expected a semicolon after the program name"
     (variableSection, rest') <- parseVariableSection rest
     operatorSection <- parseOperatorSection rest'
-    return $ pure (AST (Name name)) <*> variableSection <*> operatorSection
+    return $ pure (AST (Pos namePos $ Name name)) <*> variableSection <*> operatorSection
 parse ((Pos _ ProgramKeyword) : (Pos pos _) : _) = do
     tellError pos "Expected the program name after the program keyword"
     return Nothing
@@ -27,14 +27,14 @@ parse ((Pos pos _) : _) = do
     return Nothing
 parse [] = return Nothing
 
-parseVariableSection :: [Pos Token] -> Writer [String] (Maybe VariableSection, [Pos Token])
-parseVariableSection ((Pos (f, _, _) VarKeyword):rest) = do
+parseVariableSection :: [Pos Token] -> Writer [String] (Maybe (Pos VariableSection), [Pos Token])
+parseVariableSection ((Pos (f, r, c) VarKeyword):rest) = do
     (names, rest') <- parseVariableDefinition rest
     case rest' of
-        ((Pos _ Semicolon):b@(Pos _ BeginKeyword):rest'') -> return (VariableSection . (:[]) <$> names, b:rest'')
+        ((Pos _ Semicolon):b@(Pos _ BeginKeyword):rest'') -> return (Pos (f, r, c) . VariableSection . (:[]) <$> names, b:rest'')
         ((Pos _ Semicolon):i@(Pos _ (Identifier _)):rest'') -> do
             (section, rest''') <- parseVariableSection $ (Pos (f, 0, 0) VarKeyword):i:rest''
-            return $ (section >>= \(VariableSection s) -> VariableSection . (:s) <$> names, rest''')
+            return $ (section >>= \(Pos _ (VariableSection s)) -> Pos (f, r, c) . VariableSection . (:s) <$> names, rest''')
         ((Pos _ Semicolon):(Pos pos token):rest'') -> do
             tellError pos $ "Expected either the begin keyword or an identifier, found " ++ show token
             return (Nothing, (Pos pos token):rest'')
@@ -47,15 +47,15 @@ parseVariableSection ((Pos pos _):rest) = do
     return (Nothing, rest)
 parseVariableSection [] = return (Nothing, [])
 
-parseVariableDefinition :: [Pos Token] -> Writer [String] (Maybe ([Name], Type), [Pos Token])
-parseVariableDefinition ((Pos _ (Identifier name)) : (Pos _ Comma) : i@(Pos _ (Identifier _)) : rest) = do
+parseVariableDefinition :: [Pos Token] -> Writer [String] (Maybe ([Pos Name], Pos Type), [Pos Token])
+parseVariableDefinition ((Pos pos (Identifier name)) : (Pos _ Comma) : i@(Pos _ (Identifier _)) : rest) = do
     (names, rest') <- parseVariableDefinition $ i : rest
-    return $ (fmap (\(n, t) -> (Name name:n, t)) names, rest')
+    return $ (fmap (\(n, t) -> (Pos pos (Name name) : n, t)) names, rest')
 parseVariableDefinition ((Pos _ (Identifier _)) : (Pos _ Comma) : (Pos pos token) : rest) = do
     tellError pos $ "Expected an identifier. Actual: " ++ show token
     return (Nothing, (Pos pos token) : rest)
-parseVariableDefinition ((Pos _ (Identifier name)) : (Pos _ Colon) : (Pos _ IntegerType) : rest) = return (Just ([Name name], AST.IntegerType), rest)
-parseVariableDefinition ((Pos _ (Identifier name)) : (Pos _ Colon) : (Pos _ BooleanType) : rest) = return (Just ([Name name], AST.BooleanType), rest)
+parseVariableDefinition ((Pos namePos (Identifier name)) : (Pos _ Colon) : (Pos typePos IntegerType) : rest) = return (Just ([Pos namePos $ Name name], Pos typePos AST.IntegerType), rest)
+parseVariableDefinition ((Pos namePos (Identifier name)) : (Pos _ Colon) : (Pos typePos BooleanType) : rest) = return (Just ([Pos namePos $ Name name], Pos typePos AST.BooleanType), rest)
 parseVariableDefinition ((Pos _ (Identifier _)) : (Pos _ Colon) : (Pos pos token) : rest) = do
     tellError pos $ "Expected a type. Actual: " ++ show token
     return (Nothing, (Pos pos token) : rest)
@@ -67,13 +67,13 @@ parseVariableDefinition ((Pos pos token) : rest) = do
     return (Nothing, (Pos pos token) : rest)
 parseVariableDefinition [] = return (Nothing, [])
 
-parseOperatorSection :: [Pos Token] -> Writer [String] (Maybe OperatorSection)
-parseOperatorSection ((Pos _ BeginKeyword) : i@(Pos _ (Identifier _)): rest) = (parseAssignmentOperator $ i : rest) >>= uncurry parseOperatorSectionRest
-parseOperatorSection ((Pos _ BeginKeyword) : w@(Pos _ WritelnKeyword): rest) = (parseOutputOperator $ w : rest) >>= uncurry parseOperatorSectionRest
-parseOperatorSection ((Pos _ BeginKeyword) : b@(Pos _ BeginKeyword): rest) = (parseCompoundOperator $ b : rest) >>= uncurry parseOperatorSectionRest
-parseOperatorSection ((Pos _ BeginKeyword) : w@(Pos _ WhileKeyword): rest) = (parseWhileLoopOperator $ w : rest) >>= uncurry parseOperatorSectionRest
-parseOperatorSection ((Pos _ BeginKeyword) : c@(Pos _ CaseKeyword): rest) = (parseSwitchOperator $ c : rest) >>= uncurry parseOperatorSectionRest
-parseOperatorSection ((Pos _ BeginKeyword) : i@(Pos _ IfKeyword): rest) = (parseIfOperator $ i : rest) >>= uncurry parseOperatorSectionRest
+parseOperatorSection :: [Pos Token] -> Writer [String] (Maybe (Pos OperatorSection))
+parseOperatorSection ((Pos pos BeginKeyword) : i@(Pos _ (Identifier _)): rest) = (fmap . fmap) (Pos pos) $ (parseAssignmentOperator $ i : rest) >>= uncurry parseOperatorSectionRest
+parseOperatorSection ((Pos pos BeginKeyword) : w@(Pos _ WritelnKeyword): rest) = (fmap . fmap) (Pos pos) $ (parseOutputOperator $ w : rest) >>= uncurry parseOperatorSectionRest
+parseOperatorSection ((Pos pos BeginKeyword) : b@(Pos _ BeginKeyword): rest) = (fmap . fmap) (Pos pos) $ (parseCompoundOperator $ b : rest) >>= uncurry parseOperatorSectionRest
+parseOperatorSection ((Pos pos BeginKeyword) : w@(Pos _ WhileKeyword): rest) = (fmap . fmap) (Pos pos) $ (parseWhileLoopOperator $ w : rest) >>= uncurry parseOperatorSectionRest
+parseOperatorSection ((Pos pos BeginKeyword) : c@(Pos _ CaseKeyword): rest) = (fmap . fmap) (Pos pos) $ (parseSwitchOperator $ c : rest) >>= uncurry parseOperatorSectionRest
+parseOperatorSection ((Pos pos BeginKeyword) : i@(Pos _ IfKeyword): rest) = (fmap . fmap) (Pos pos) $ (parseIfOperator $ i : rest) >>= uncurry parseOperatorSectionRest
 parseOperatorSection ((Pos _ BeginKeyword) : (Pos pos token) : _) = do
     tellError pos $ "Expected an operator. Actual: " ++ show token
     return Nothing
@@ -82,7 +82,7 @@ parseOperatorSection ((Pos pos token) : _) = do
     return Nothing
 parseOperatorSection [] = return Nothing
 
-parseOperatorSectionRest :: Maybe Operator -> [Pos Token] -> Writer [String] (Maybe OperatorSection)
+parseOperatorSectionRest :: Maybe (Pos Operator) -> [Pos Token] -> Writer [String] (Maybe OperatorSection)
 parseOperatorSectionRest op rest = case rest of
     ((Pos _ EndKeyword) : (Pos _ Dot) : (Pos _ EOF) : _) -> return $ OperatorSection . (:[]) <$> op 
     ((Pos _ EndKeyword) : (Pos _ Dot) : (Pos pos token) : _) -> do
@@ -91,42 +91,42 @@ parseOperatorSectionRest op rest = case rest of
     ((Pos _ EndKeyword) : (Pos pos token) : _) -> do
         tellError pos $ "Expected a dot after the end of the operator section. Actual: " ++ show token
         return $ OperatorSection . (:[]) <$> op
-    ((Pos pos Semicolon) : rest') -> do
-        section <- parseOperatorSection $ (Pos pos BeginKeyword) : rest'
-        return $ section >>= \(OperatorSection ops) -> OperatorSection . (:ops) <$> op
+    ((Pos semPos Semicolon) : rest') -> do
+        section <- parseOperatorSection $ Pos semPos BeginKeyword : rest'
+        return $ section >>= (\(Pos _ (OperatorSection ops)) -> OperatorSection . (:ops) <$> op)
     ((Pos pos token) : _) -> do
         tellError pos $ "Expected either the end keyword or a semicolon. Actual: " ++ show token
         return Nothing
     [] -> return Nothing
 
-parseAssignmentOperator :: [Pos Token] -> Writer [String] (Maybe Operator, [Pos Token])
-parseAssignmentOperator ((Pos _ (Identifier name)) : (Pos _ AssignmentOperator) : rest) = do
+parseAssignmentOperator :: [Pos Token] -> Writer [String] (Maybe (Pos Operator), [Pos Token])
+parseAssignmentOperator ((Pos pos (Identifier name)) : (Pos _ AssignmentOperator) : rest) = do
     (expr, rest') <- parseExpression rest
-    return (AST.AssignmentOperator (Name name) <$> expr, rest')
+    return (Pos pos . AST.AssignmentOperator (Pos pos $ Name name) <$> expr, rest')
 parseAssignmentOperator ((Pos _ (Identifier _)) : (Pos pos token) : rest) = do
     tellError pos $ "Expected an assignment operator (:=). Actual" ++ show token
     return (Nothing, (Pos pos token) : rest)
 parseAssignmentOperator tokens = return (Nothing, tokens)
 
-parseOutputOperator :: [Pos Token] -> Writer [String] (Maybe Operator, [Pos Token])
-parseOutputOperator ((Pos _ WritelnKeyword): (Pos _ OpenParen): rest) = do
+parseOutputOperator :: [Pos Token] -> Writer [String] (Maybe (Pos Operator), [Pos Token])
+parseOutputOperator ((Pos pos WritelnKeyword): (Pos _ OpenParen): rest) = do
     (args, rest') <- parseArgumentList rest
     case args of
-        Just args' -> parseOutputOperatorRest args' rest'
+        Just args' -> (\(op, ts) -> (Pos pos <$> op, ts)) <$> parseOutputOperatorRest args' rest'
         Nothing -> return (Nothing, rest')
 parseOutputOperator ((Pos _ WritelnKeyword): (Pos pos token): rest) = do
     tellError pos $ "Expected an opening parenthesis for the writeln function call. Actual: " ++ show token
     return (Nothing, (Pos pos token) : rest)
 parseOutputOperator tokens = return (Nothing, tokens)
 
-parseOutputOperatorRest :: [Expression] -> [Pos Token] -> Writer [String] (Maybe Operator, [Pos Token])
+parseOutputOperatorRest :: [Pos Expression] -> [Pos Token] -> Writer [String] (Maybe Operator, [Pos Token])
 parseOutputOperatorRest args ((Pos _ CloseParen) : rest) = return (Just $ OutputOperator args, rest)
 parseOutputOperatorRest args ((Pos pos token) : rest) = do
     when (not $ null args) $ tellError pos $ "Expected a closing parenthesis. Actual: " ++ show token
     return (Nothing, rest)
 parseOutputOperatorRest _ [] = return (Nothing, [])
      
-parseArgumentList :: [Pos Token] -> Writer [String] (Maybe [Expression], [Pos Token])
+parseArgumentList :: [Pos Token] -> Writer [String] (Maybe [Pos Expression], [Pos Token])
 parseArgumentList tokens = do
     (expr, rest) <- parseExpression tokens
     if isJust expr then case rest of
@@ -140,78 +140,78 @@ parseArgumentList tokens = do
         [] -> return (Nothing, rest)
     else return (Nothing, rest)
 
-parseCompoundOperator :: [Pos Token] -> Writer [String] (Maybe Operator, [Pos Token])
+parseCompoundOperator :: [Pos Token] -> Writer [String] (Maybe (Pos Operator), [Pos Token])
 parseCompoundOperator = undefined
 
-parseWhileLoopOperator :: [Pos Token] -> Writer [String] (Maybe Operator, [Pos Token])
+parseWhileLoopOperator :: [Pos Token] -> Writer [String] (Maybe (Pos Operator), [Pos Token])
 parseWhileLoopOperator = undefined
 
-parseSwitchOperator :: [Pos Token] -> Writer [String] (Maybe Operator, [Pos Token])
+parseSwitchOperator :: [Pos Token] -> Writer [String] (Maybe (Pos Operator), [Pos Token])
 parseSwitchOperator = undefined
 
-parseIfOperator :: [Pos Token] -> Writer [String] (Maybe Operator, [Pos Token])
+parseIfOperator :: [Pos Token] -> Writer [String] (Maybe (Pos Operator), [Pos Token])
 parseIfOperator = undefined
 
-parseExpression :: [Pos Token] -> Writer [String] (Maybe Expression, [Pos Token])
+parseExpression :: [Pos Token] -> Writer [String] (Maybe (Pos Expression), [Pos Token])
 parseExpression tokens = do
     parsed <- parseSumExpression tokens
     case parsed of
         (Nothing, rest) -> return (Nothing, rest)
-        (Just expr, (Pos _ t):ts) | isJust $ toRelationOp t -> do
+        (Just (Pos pos expr), (Pos opPos t):ts) | isJust $ toRelationOp t -> do
             parsed' <- parseSumExpression ts
             return $ case parsed' of
                 (Nothing, rest) -> (Nothing, rest)
                 (Just expr', rest) ->
-                    (pure RelationExpression <*> toRelationOp t <*> pure expr <*> pure expr', rest)
-        _ -> return (SimpleExpression <$> fst parsed, snd parsed)
+                    (fmap (Pos pos) $ pure RelationExpression <*> (Pos opPos <$> toRelationOp t) <*> pure (Pos pos expr) <*> pure expr', rest)
+        (Just (Pos pos expr), ts) -> return (Just . Pos pos . SimpleExpression $ Pos pos expr, ts)
 
-parseSumExpression :: [Pos Token] -> Writer [String] (Maybe SumExpression, [Pos Token])
+parseSumExpression :: [Pos Token] -> Writer [String] (Maybe (Pos SumExpression), [Pos Token])
 parseSumExpression tokens = do
     parsed <- parseProductExpression tokens
     case parsed of
         (Nothing, rest) -> return (Nothing, rest)
-        (Just prod, rest) -> parseSumLoop (SimpleSumExpression prod) rest
+        (Just (Pos pos prod), rest) -> parseSumLoop (Pos pos . SimpleSumExpression $ Pos pos prod) rest
     where
-        parseSumLoop acc ((Pos _ t):ts) | isJust $ toAdditionOp t = do
+        parseSumLoop (Pos accPos acc) ((Pos opPos t):ts) | isJust $ toAdditionOp t = do
             parsed <- parseProductExpression ts
             case parsed of
                 (Nothing, rest) -> return (Nothing, rest)
                 (Just expr, rest) -> let
-                    newAcc = AdditionExpression (fromJust $ toAdditionOp t) acc expr
+                    newAcc = Pos accPos $ AdditionExpression (Pos opPos . fromJust $ toAdditionOp t) (Pos accPos acc) expr
                     in parseSumLoop newAcc rest
         parseSumLoop acc tokens' = return (Just acc, tokens')
         
-parseProductExpression :: [Pos Token] -> Writer [String] (Maybe ProductExpression, [Pos Token])
+parseProductExpression :: [Pos Token] -> Writer [String] (Maybe (Pos ProductExpression), [Pos Token])
 parseProductExpression tokens = do
     parsed <- parseBasicExpression tokens
     case parsed of
         (Nothing, rest) -> return (Nothing, rest)
-        (Just basic, rest) -> parseProductLoop (SimpleProductExpression basic) rest
+        (Just (Pos pos basic), rest) -> parseProductLoop (Pos pos . SimpleProductExpression $ Pos pos basic) rest
     where
-        parseProductLoop acc ((Pos _ t):ts) | isJust $ toMultiplicationOp t = do
+        parseProductLoop (Pos accPos acc) ((Pos opPos t):ts) | isJust $ toMultiplicationOp t = do
             parsed <- parseBasicExpression ts
             case parsed of
                 (Nothing, rest) -> return (Nothing, rest)
                 (Just expr, rest) -> let
-                    newAcc = MultiplicationExpression (fromJust $ toMultiplicationOp t) acc expr
+                    newAcc = Pos accPos $ MultiplicationExpression (Pos opPos . fromJust $ toMultiplicationOp t) (Pos accPos acc) expr
                     in parseProductLoop newAcc rest
         parseProductLoop acc tokens' = return (Just acc, tokens')
 
-parseBasicExpression :: [Pos Token] -> Writer [String] (Maybe BasicExpression, [Pos Token])
+parseBasicExpression :: [Pos Token] -> Writer [String] (Maybe (Pos BasicExpression), [Pos Token])
 parseBasicExpression [] = return (Nothing, [])
-parseBasicExpression ((Pos _ token):rest) = case token of
-    Identifier name -> return (Just . NameExpression $ Name name, rest)
-    IntegerConstant i -> return (Just . ConstantExpression $ AST.IntegerConstant i, rest)
-    BooleanConstant b -> return (Just . ConstantExpression $ AST.BooleanConstant b, rest)
+parseBasicExpression ((Pos pos token):rest) = case token of
+    Identifier name -> return (Just . Pos pos . NameExpression . Pos pos $ Name name, rest)
+    IntegerConstant i -> return (Just . Pos pos . ConstantExpression . Pos pos $ AST.IntegerConstant i, rest)
+    BooleanConstant b -> return (Just . Pos pos . ConstantExpression . Pos pos $ AST.BooleanConstant b, rest)
     NotOperator -> do
         parsed <- parseBasicExpression rest
         return $ case parsed of
             (Nothing, rest') -> (Nothing, rest')
-            (Just basic, rest') -> (Just $ NotExpression basic, rest')
+            (Just basic, rest') -> (Just . Pos pos $ NotExpression basic, rest')
     OpenParen -> do
         parsed <- parseExpression rest
         return $ case parsed of
-            (Just expr, ((Pos _ CloseParen):rest')) -> (Just $ ParenthesizedExpression expr, rest')
+            (Just expr, ((Pos _ CloseParen):rest')) -> (Just . Pos pos $ ParenthesizedExpression expr, rest')
             (_, rest') -> (Nothing, rest')
     _ -> return (Nothing, rest)
 

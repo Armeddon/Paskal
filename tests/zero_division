@@ -1,0 +1,7 @@
+program ZeroDivision;
+var nominator, denominator : integer;
+begin
+    nominator := 3 + 4 * 2;
+    denominator := 5 * 0;
+    writeln(nominator, denominator, nominator div denominator)
+end.
