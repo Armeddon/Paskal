@@ -158,7 +158,7 @@ parseCompoundOperator (Pos pos BeginKeyword : rest) = do
                 (_, rest'') -> return (Nothing, rest'')
         (Just op, Pos pos' t : rest') -> do
             tellError pos' $ "Expected either the end keyword or a semicolon, found " ++ show t
-            return (Just . Pos pos $ CompoundOperator [op], rest')
+            return (Just . Pos pos $ CompoundOperator [op], Pos pos' t : rest')
         (Just _, []) -> return (Nothing, rest)
 parseCompoundOperator tokens = return (Nothing, tokens)
 
@@ -174,7 +174,7 @@ parseWhileLoopOperator (Pos pos WhileKeyword : rest) = do
                 (Just op, rest'') -> return (Just . Pos pos $ WhileLoopOperator expr op, rest'')
         (Just expr, Pos pos' t : rest') -> do
             tellError pos' $ "Expected the do keyword, found " ++ show t
-            operator <- parseOperator rest'
+            operator <- parseOperator $ Pos pos' t : rest'
             case operator of
                 n@(Nothing, _) -> return n
                 (Just op, rest'') -> return (Just . Pos pos $ WhileLoopOperator expr op, rest'')
@@ -185,7 +185,79 @@ parseWhileLoopOperator (Pos pos t : rest) = do
 parseWhileLoopOperator [] = return (Nothing, [])
 
 parseSwitchOperator :: [Pos Token] -> Writer [String] (Maybe (Pos Operator), [Pos Token])
-parseSwitchOperator = undefined
+parseSwitchOperator (Pos pos CaseKeyword : rest) = do
+    expression <- parseExpression rest
+    case expression of
+        (Nothing, rest') -> return (Nothing, rest')
+        (Just expr, Pos _ OfKeyword : rest') -> do
+            variant <- parseSwitchVariant rest'
+            case variant of
+                (Nothing, rest'') -> return (Nothing, rest'')
+                (Just var, rest'') -> do
+                    variants <- parseSwitchVariantsRest rest''
+                    case variants of
+                        (Nothing, rest''') -> return (Nothing, rest''')
+                        (Just vars, Pos _ EndCaseKeyword : rest''') ->
+                            return (Just . Pos pos . SwitchOperator expr $ var : vars, rest''')
+                        (Just vars, Pos pos' t : rest''') -> do
+                            tellError pos' $ "Expected the endcase keyword, found " ++ show t
+                            return (Just . Pos pos . SwitchOperator expr $ var : vars, Pos pos' t : rest''')
+                        (Just _, []) -> return (Nothing, [])
+        (Just expr, Pos pos' t : rest') -> do
+            tellError pos' $ "Expected the of keyword, found " ++ show t
+            variant <- parseSwitchVariant $ Pos pos' t : rest'
+            case variant of
+                (Nothing, rest'') -> return (Nothing, rest'')
+                (Just var, rest'') -> do
+                    variants <- parseSwitchVariantsRest rest''
+                    case variants of
+                        (Nothing, rest''') -> return (Nothing, rest''')
+                        (Just vars, Pos _ EndCaseKeyword : rest''') ->
+                            return (Just . Pos pos . SwitchOperator expr $ var : vars, rest''')
+                        (Just vars, Pos pos'' t' : rest''') -> do
+                            tellError pos'' $ "Expected the endcase keyword, found " ++ show t'
+                            return (Just . Pos pos . SwitchOperator expr $ var : vars, Pos pos'' t' : rest''')
+                        (Just _, []) -> return (Nothing, [])
+        (Just _, []) -> return (Nothing, [])
+parseSwitchOperator (Pos pos t : rest) = do
+    tellError pos $ "Expected the case keyword, found " ++ show t
+    return (Nothing, rest)
+parseSwitchOperator [] = return (Nothing, [])
+
+parseSwitchVariant :: [Pos Token] -> Writer [String] (Maybe (Pos AST.Constant, Pos Operator), [Pos Token])
+parseSwitchVariant tokens = do
+    constant <- parseConstant tokens
+    case constant of
+        (Nothing, rest) -> return (Nothing, rest)
+        (Just c, Pos _ Colon : rest) -> do
+            operator <- parseOperator rest
+            case operator of
+                (Nothing, rest') -> return (Nothing, rest')
+                (Just op, rest') -> return (Just (c, op), rest')
+        (Just c, Pos pos t : rest) -> do
+            tellError pos $ "Expected the colon (:) token, found " ++ show t
+            operator <- parseOperator $ Pos pos t : rest
+            case operator of
+                (Nothing, rest') -> return (Nothing, rest')
+                (Just op, rest') -> return (Just (c, op), rest')
+        (Just _, []) -> return (Nothing, [])
+
+parseSwitchVariantsRest :: [Pos Token] -> Writer [String] (Maybe [(Pos AST.Constant, Pos Operator)], [Pos Token])
+parseSwitchVariantsRest (Pos _ EndCaseKeyword : rest) = return (Just [], rest)
+parseSwitchVariantsRest (Pos _ Semicolon : rest) = do
+    variant <- parseSwitchVariant rest
+    case variant of
+        (Nothing, rest') -> return (Nothing, rest')
+        (Just var, rest') -> do
+            variants <- parseSwitchVariantsRest rest'
+            case variants of
+                (Nothing, rest'') -> return (Nothing, rest'')
+                (Just vars, rest'') -> return (Just $ var : vars, rest'')
+parseSwitchVariantsRest (Pos pos t : rest) = do
+    tellError pos $ "Expected either the endcase keyword or the semicolon (;), found: " ++ show t
+    return (Just [], Pos pos t : rest)
+parseSwitchVariantsRest [] = return (Nothing, [])
+        
 
 parseIfOperator :: [Pos Token] -> Writer [String] (Maybe (Pos Operator), [Pos Token])
 parseIfOperator ((Pos pos IfKeyword) : rest) = do
@@ -293,6 +365,14 @@ parseBasicExpression (Pos pos token : rest) = case token of
             (Just expr, (Pos _ CloseParen : rest')) -> (Just . Pos pos $ ParenthesizedExpression expr, rest')
             (_, rest') -> (Nothing, rest')
     _ -> return (Nothing, rest)
+
+parseConstant :: [Pos Token] -> Writer [String] (Maybe (Pos AST.Constant), [Pos Token])
+parseConstant (Pos pos (IntegerConstant i) : rest) = return (Just . Pos pos $ AST.IntegerConstant i, rest)
+parseConstant (Pos pos (BooleanConstant b) : rest) = return (Just . Pos pos $ AST.BooleanConstant b, rest)
+parseConstant (Pos pos t : rest) = do
+    tellError pos $ "Expected a constant, found: " ++ show t
+    return (Nothing, Pos pos t : rest)
+parseConstant [] = return (Nothing, [])
 
 toRelationOp :: Token -> Maybe RelationOperation
 toRelationOp GreaterOperator = Just Greater 
