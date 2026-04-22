@@ -30,7 +30,52 @@ executeOperator vt m (Pos pos (OutputOperator (expr:exprs))) = do
     case result of
         Left (Pos epos msg) -> printError epos msg >> return m
         Right value -> printConstant value >> executeOperator vt m (Pos pos $ OutputOperator exprs)
-executeOperator _ _ _ = undefined
+executeOperator vt m (Pos _ (CompoundOperator ops)) = foldl (flip (.) (flip $ executeOperator vt) . (>>=)) (return m) ops
+executeOperator vt m w@(Pos _ (WhileLoopOperator cond@(Pos pos _) op)) = let
+    expr = evaluateExpression cond m
+    in case expr of
+        Left (Pos pos' msg) -> do
+            printError pos' msg
+            return m
+        Right (BooleanConstant True) -> do
+            m' <- executeOperator vt m op
+            executeOperator vt m' w
+        Right (BooleanConstant False) -> return m
+        Right (IntegerConstant i) -> do
+            printError pos . Just $ "Expected a boolean constant, found an integer constant " ++ show i
+            return m
+executeOperator _ m (Pos _ (SwitchOperator _ [])) = return m
+executeOperator vt m (Pos pos (SwitchOperator expr (var:vars))) = let
+    res = evaluateExpression expr m
+    in case res of
+        Left (Pos pos' msg) -> do
+            printError pos' msg
+            return m
+        Right (BooleanConstant b1) -> case fst var of
+            Pos _ (BooleanConstant b2) -> executeOperator vt m $
+                if b1 == b2
+                then snd var
+                else Pos pos (SwitchOperator expr vars)
+            Pos _ (IntegerConstant _) -> executeOperator vt m (Pos pos (SwitchOperator expr vars))
+        Right (IntegerConstant i1) -> case fst var of
+            Pos _ (IntegerConstant i2) -> executeOperator vt m $
+                if i1 == i2
+                then snd var
+                else Pos pos (SwitchOperator expr vars)
+            Pos _ (BooleanConstant _) -> executeOperator vt m (Pos pos (SwitchOperator expr vars))
+executeOperator vt m (Pos _ (IfOperator expr@(Pos pos _) thenOp elseOp)) = let
+    res = evaluateExpression expr m
+    in case res of
+        Left (Pos pos' msg) -> do
+            printError pos' msg
+            return m
+        Right (BooleanConstant True) ->
+            executeOperator vt m thenOp
+        Right (BooleanConstant False) ->
+            executeOperator vt m elseOp
+        Right (IntegerConstant i) -> do
+            printError pos . Just $ "Expected a boolean expression, found integer result " ++ show i
+            return m
 
 evaluateExpression :: Pos Expression -> [(Name, Constant)] -> Either (Pos (Maybe String)) Constant
 evaluateExpression (Pos _ (SimpleExpression expr)) = evaluateSumExpression expr
