@@ -61,13 +61,21 @@ tokenizeWord input@((Pos pos _):_) = Pos pos $ case map (\(Pos _ c) -> c) input 
 tokenizeWord [] = Pos (Filename "", 0, 0) $ Left ""
 
 enumerateSymbols :: Filename -> String -> [Pos Char]
-enumerateSymbols f = tail . scanl (\(Pos (_, r, c) _) chr -> if chr == '\n' then Pos (f, r+1, 1) chr else Pos (f, r, c+1) chr) (Pos (f, 1, 0) '_')
+enumerateSymbols f = tail . scanl (\(Pos (_, r, c) _) chr ->
+        if chr == '\n'
+        then Pos (f, r+1, 1) chr
+        else Pos (f, r, c+1) chr
+    ) (Pos (f, 1, 0) '_')
 
 surroundSymbols :: [Pos Char] -> [Pos Char]
 surroundSymbols text = foldr surroundSymbol text ".,();"
 
 surroundSymbol :: Char -> [Pos Char] -> [Pos Char]
-surroundSymbol c1 ((Pos pos c2):rest) | c1 == c2  = [Pos (Filename "", 0, 0) ' ', Pos pos c1, Pos (Filename "", 0, 0) ' '] ++ surroundSymbol c1 rest
+surroundSymbol c1 ((Pos pos c2):rest) | c1 == c2  = [
+        Pos (Filename "", 0, 0) ' ',
+        Pos pos c1,
+        Pos (Filename "", 0, 0) ' '
+    ] ++ surroundSymbol c1 rest
                                    | otherwise = Pos pos c2 : surroundSymbol c1 rest
 surroundSymbol _ [] = []
 

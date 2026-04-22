@@ -45,7 +45,8 @@ checkUndeclaredIdentifiers names (Pos _ (AssignmentOperator target expr) : ops) 
 checkUndeclaredIdentifiers names (Pos _ (OutputOperator exprs) : ops) = do
     mapM_ (checkUndeclIdentExpr names) exprs
     checkUndeclaredIdentifiers names ops
-checkUndeclaredIdentifiers names (Pos _ (CompoundOperator operators) : ops) = checkUndeclaredIdentifiers names $ operators ++ ops
+checkUndeclaredIdentifiers names (Pos _ (CompoundOperator operators) : ops) =
+    checkUndeclaredIdentifiers names $ operators ++ ops
 checkUndeclaredIdentifiers names (Pos _ (WhileLoopOperator expr op) : ops) = do
     checkUndeclIdentExpr names expr
     checkUndeclaredIdentifiers names $ op : ops
@@ -57,19 +58,22 @@ checkUndeclaredIdentifiers names (Pos _ (IfOperator expr thenOp elseOp) : ops) =
     checkUndeclaredIdentifiers names $ thenOp : elseOp : ops
 
 checkUndeclIdentExpr :: [Name] -> Pos Expression -> Writer [String] ()
-checkUndeclIdentExpr names (Pos _ (SimpleExpression sumExpr)) = checkUndeclIdentSumExpr names sumExpr
+checkUndeclIdentExpr names (Pos _ (SimpleExpression sumExpr)) =
+    checkUndeclIdentSumExpr names sumExpr
 checkUndeclIdentExpr names (Pos _ (RelationExpression _ sum1 sum2)) = do
     checkUndeclIdentSumExpr names sum1
     checkUndeclIdentSumExpr names sum2
 
 checkUndeclIdentSumExpr :: [Name] -> Pos SumExpression -> Writer [String] () 
-checkUndeclIdentSumExpr names (Pos _ (SimpleSumExpression prod)) = checkUndeclIdentProdExpr names prod
+checkUndeclIdentSumExpr names (Pos _ (SimpleSumExpression prod)) =
+    checkUndeclIdentProdExpr names prod
 checkUndeclIdentSumExpr names (Pos _ (AdditionExpression _ prod1 prod2)) = do
     checkUndeclIdentSumExpr names prod1
     checkUndeclIdentProdExpr names prod2
 
 checkUndeclIdentProdExpr :: [Name] -> Pos ProductExpression -> Writer [String] ()
-checkUndeclIdentProdExpr names (Pos _ (SimpleProductExpression basic)) = checkUndeclIdentBasicExpr names basic
+checkUndeclIdentProdExpr names (Pos _ (SimpleProductExpression basic)) =
+    checkUndeclIdentBasicExpr names basic
 checkUndeclIdentProdExpr names (Pos _ (MultiplicationExpression _ basic1 basic2)) = do
     checkUndeclIdentProdExpr names basic1
     checkUndeclIdentBasicExpr names basic2
@@ -92,10 +96,14 @@ checkAssignmentTypes names (Pos pos (AssignmentOperator name expr) : ops) =
         tellError pos "Mismatched type in the assignment"
         checkAssignmentTypes names ops
 checkAssignmentTypes names (Pos _ (OutputOperator _) : ops) = checkAssignmentTypes names ops
-checkAssignmentTypes names (Pos _ (CompoundOperator operators) : ops) = checkAssignmentTypes names $ operators ++ ops
-checkAssignmentTypes names (Pos _ (WhileLoopOperator _ op) : ops) = checkAssignmentTypes names $ op : ops
-checkAssignmentTypes names (Pos _ (SwitchOperator _ variants) : ops) = checkAssignmentTypes names $ map snd variants ++ ops
-checkAssignmentTypes names (Pos _ (IfOperator _ thenOp elseOp) : ops) = checkAssignmentTypes names $ thenOp : elseOp : ops
+checkAssignmentTypes names (Pos _ (CompoundOperator operators) : ops) =
+    checkAssignmentTypes names $ operators ++ ops
+checkAssignmentTypes names (Pos _ (WhileLoopOperator _ op) : ops) =
+    checkAssignmentTypes names $ op : ops
+checkAssignmentTypes names (Pos _ (SwitchOperator _ variants) : ops) =
+    checkAssignmentTypes names $ map snd variants ++ ops
+checkAssignmentTypes names (Pos _ (IfOperator _ thenOp elseOp) : ops) =
+    checkAssignmentTypes names $ thenOp : elseOp : ops
 
 getExpressionType :: [(Name, Type)] -> Expression -> Maybe Type
 getExpressionType _ (RelationExpression _ _ _) = Just BooleanType
