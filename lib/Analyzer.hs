@@ -81,5 +81,41 @@ checkUndeclIdentBasicExpr names (Pos _ (NameExpression (Pos pos name@(Name strin
     else tellError pos $ "Undeclared variable " ++ string
 checkUndeclIdentBasicExpr _ _ = return ()
 
-checkOperator :: [(Name, Type)] -> [(Name, Constant)] -> Pos Operator -> Writer [String] (Maybe Operator)
-checkOperator = undefined
+checkAssignmentTypes :: [(Name, Type)] -> [Pos Operator] -> Writer [String] ()
+checkAssignmentTypes _ [] = return ()
+checkAssignmentTypes names (Pos pos (AssignmentOperator name expr) : ops) =
+    let Pos _ name' = name in
+    let Pos _ expr' = expr in
+    if lookup name' names == getExpressionType names expr'
+    then checkAssignmentTypes names ops
+    else do
+        tellError pos "Mismatched type in the assignment"
+        checkAssignmentTypes names ops
+checkAssignmentTypes names (Pos _ (OutputOperator _) : ops) = checkAssignmentTypes names ops
+checkAssignmentTypes names (Pos _ (CompoundOperator operators) : ops) = checkAssignmentTypes names $ operators ++ ops
+checkAssignmentTypes names (Pos _ (WhileLoopOperator _ op) : ops) = checkAssignmentTypes names $ op : ops
+checkAssignmentTypes names (Pos _ (SwitchOperator _ variants) : ops) = checkAssignmentTypes names $ map snd variants ++ ops
+checkAssignmentTypes names (Pos _ (IfOperator _ thenOp elseOp) : ops) = checkAssignmentTypes names $ thenOp : elseOp : ops
+
+getExpressionType :: [(Name, Type)] -> Expression -> Maybe Type
+getExpressionType _ (RelationExpression _ _ _) = Just BooleanType
+getExpressionType names (SimpleExpression (Pos _ sumExpr)) = getSumExprType names sumExpr
+
+getSumExprType :: [(Name, Type)] -> SumExpression -> Maybe Type
+getSumExprType names (SimpleSumExpression (Pos _ prodExpr)) = getProdExprType names prodExpr
+getSumExprType _ (AdditionExpression (Pos _ Add) _ _ ) = Just IntegerType
+getSumExprType _ (AdditionExpression (Pos _ Subtract) _ _ ) = Just IntegerType
+getSumExprType _ (AdditionExpression (Pos _ Or) _ _ ) = Just BooleanType
+
+getProdExprType :: [(Name, Type)] -> ProductExpression -> Maybe Type
+getProdExprType names (SimpleProductExpression (Pos _ basic)) = getBasicExprType names basic
+getProdExprType _ (MultiplicationExpression (Pos _ Multiply)_ _) = Just IntegerType
+getProdExprType _ (MultiplicationExpression (Pos _ Divide)_ _) = Just IntegerType
+getProdExprType _ (MultiplicationExpression (Pos _ Modulus)_ _) = Just IntegerType
+getProdExprType _ (MultiplicationExpression (Pos _ And)_ _) = Just BooleanType
+
+getBasicExprType :: [(Name, Type)] -> BasicExpression -> Maybe Type
+getBasicExprType names (NameExpression (Pos _ name)) = lookup name names
+getBasicExprType _ (ConstantExpression (Pos _ c)) = Just $ typeOfConstant c
+getBasicExprType names (ParenthesizedExpression (Pos _ expr)) = getExpressionType names expr
+getBasicExprType _ (NotExpression _) = Just BooleanType
