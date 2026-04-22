@@ -163,7 +163,26 @@ parseCompoundOperator ((Pos pos BeginKeyword) : rest) = do
 parseCompoundOperator tokens = return (Nothing, tokens)
 
 parseWhileLoopOperator :: [Pos Token] -> Writer [String] (Maybe (Pos Operator), [Pos Token])
-parseWhileLoopOperator = undefined
+parseWhileLoopOperator ((Pos pos WhileKeyword) : rest) = do
+    condition <- parseExpression rest
+    case condition of
+        (Nothing, rest') -> return (Nothing, rest')
+        (Just expr, (Pos _ DoKeyword) : rest') -> do
+            operator <- parseOperator rest'
+            case operator of
+                n@(Nothing, _) -> return n
+                (Just op, rest'') -> return (Just . Pos pos $ WhileLoopOperator expr op, rest'')
+        (Just expr, (Pos pos' t) : rest') -> do
+            tellError pos' $ "Expected the do keyword, found " ++ show t
+            operator <- parseOperator rest'
+            case operator of
+                n@(Nothing, _) -> return n
+                (Just op, rest'') -> return (Just . Pos pos $ WhileLoopOperator expr op, rest'')
+        (Just _, []) -> return (Nothing, [])
+parseWhileLoopOperator ((Pos pos t) : rest) = do
+    tellError pos $ "Expected the while keyword, found " ++ show t
+    return (Nothing, Pos pos t : rest)
+parseWhileLoopOperator [] = return (Nothing, [])
 
 parseSwitchOperator :: [Pos Token] -> Writer [String] (Maybe (Pos Operator), [Pos Token])
 parseSwitchOperator = undefined
