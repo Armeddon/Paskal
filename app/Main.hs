@@ -2,10 +2,19 @@ module Main where
 
 import Paskal
 import System.Environment (getArgs)
+import System.IO (hPutStrLn, stderr)
+import Control.Exception (try, IOException)
 
 main :: IO ()
 main = do
     args <- getArgs
-    let filename = head args
-    contents <- readFile filename
-    interpret (Filename filename) contents
+    case args of
+        [] -> hPutStrLn stderr $ "No file argument was provided"
+        (arg:_) -> interpretFile arg
+
+interpretFile :: FilePath -> IO ()
+interpretFile filename = do
+    contents <- try $ readFile filename :: IO (Either IOException String)
+    case contents of
+        Left _ -> hPutStrLn stderr $ "Couldn't open the file " ++ filename
+        Right text -> interpret (Filename filename) text

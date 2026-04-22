@@ -68,15 +68,7 @@ parseVariableDefinition ((Pos pos token) : rest) = do
 parseVariableDefinition [] = return (Nothing, [])
 
 parseOperatorSection :: [Pos Token] -> Writer [String] (Maybe (Pos OperatorSection))
-parseOperatorSection ((Pos pos BeginKeyword) : i@(Pos _ (Identifier _)): rest) = (fmap . fmap) (Pos pos) $ (parseAssignmentOperator $ i : rest) >>= uncurry parseOperatorSectionRest
-parseOperatorSection ((Pos pos BeginKeyword) : w@(Pos _ WritelnKeyword): rest) = (fmap . fmap) (Pos pos) $ (parseOutputOperator $ w : rest) >>= uncurry parseOperatorSectionRest
-parseOperatorSection ((Pos pos BeginKeyword) : b@(Pos _ BeginKeyword): rest) = (fmap . fmap) (Pos pos) $ (parseCompoundOperator $ b : rest) >>= uncurry parseOperatorSectionRest
-parseOperatorSection ((Pos pos BeginKeyword) : w@(Pos _ WhileKeyword): rest) = (fmap . fmap) (Pos pos) $ (parseWhileLoopOperator $ w : rest) >>= uncurry parseOperatorSectionRest
-parseOperatorSection ((Pos pos BeginKeyword) : c@(Pos _ CaseKeyword): rest) = (fmap . fmap) (Pos pos) $ (parseSwitchOperator $ c : rest) >>= uncurry parseOperatorSectionRest
-parseOperatorSection ((Pos pos BeginKeyword) : i@(Pos _ IfKeyword): rest) = (fmap . fmap) (Pos pos) $ (parseIfOperator $ i : rest) >>= uncurry parseOperatorSectionRest
-parseOperatorSection ((Pos _ BeginKeyword) : (Pos pos token) : _) = do
-    tellError pos $ "Expected an operator. Actual: " ++ show token
-    return Nothing
+parseOperatorSection ((Pos pos BeginKeyword) : rest) = (fmap . fmap) (Pos pos) $ parseOperator rest >>= uncurry parseOperatorSectionRest
 parseOperatorSection ((Pos pos token) : _) = do
     tellError pos $ "Expected the begin keyword at the beginning of the operator section. Actual: " ++ show token
     return Nothing
@@ -98,6 +90,18 @@ parseOperatorSectionRest op rest = case rest of
         tellError pos $ "Expected either the end keyword or a semicolon. Actual: " ++ show token
         return Nothing
     [] -> return Nothing
+
+parseOperator :: [Pos Token] -> Writer [String] (Maybe (Pos Operator), [Pos Token])
+parseOperator (i@(Pos _ (Identifier _)): rest) = parseAssignmentOperator $ i : rest
+parseOperator (w@(Pos _ WritelnKeyword): rest) = parseOutputOperator $ w : rest
+parseOperator (b@(Pos _ BeginKeyword): rest) = parseCompoundOperator $ b : rest
+parseOperator (w@(Pos _ WhileKeyword): rest) = parseWhileLoopOperator $ w : rest
+parseOperator (c@(Pos _ CaseKeyword): rest) = parseSwitchOperator $ c : rest
+parseOperator (i@(Pos _ IfKeyword): rest) = parseIfOperator $ i : rest
+parseOperator (p@(Pos pos token) : rest) = do
+    tellError pos $ "Expected an operator. Actual: " ++ show token
+    return (Nothing, p : rest)
+parseOperator [] = return (Nothing, [])
 
 parseAssignmentOperator :: [Pos Token] -> Writer [String] (Maybe (Pos Operator), [Pos Token])
 parseAssignmentOperator ((Pos pos (Identifier name)) : (Pos _ AssignmentOperator) : rest) = do
@@ -141,7 +145,22 @@ parseArgumentList tokens = do
     else return (Nothing, rest)
 
 parseCompoundOperator :: [Pos Token] -> Writer [String] (Maybe (Pos Operator), [Pos Token])
-parseCompoundOperator = undefined
+parseCompoundOperator ((Pos pos BeginKeyword) : rest) = do
+    parsed <- parseOperator rest
+    case parsed of
+        n@(Nothing, _) -> return n
+        (Just op, (Pos _ EndKeyword) : rest') -> return (Just . Pos pos $ CompoundOperator [op], rest')
+        (Just op, (Pos pos' Semicolon) : rest') -> do
+            restOps <- parseCompoundOperator $ Pos pos' BeginKeyword : rest'
+            case restOps of
+                (Just (Pos _ (CompoundOperator ops)), rest'') ->
+                     return (Just . Pos pos . CompoundOperator $ op : ops, rest'')
+                (_, rest'') -> return (Nothing, rest'')
+        (Just op, (Pos pos' t) : rest') -> do
+            tellError pos' $ "Expected either the end keyword or a semicolon, found " ++ show t
+            return (Just . Pos pos $ CompoundOperator [op], rest')
+        (Just _, []) -> return (Nothing, rest)
+parseCompoundOperator tokens = return (Nothing, tokens)
 
 parseWhileLoopOperator :: [Pos Token] -> Writer [String] (Maybe (Pos Operator), [Pos Token])
 parseWhileLoopOperator = undefined
