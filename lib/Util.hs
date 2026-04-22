@@ -7,6 +7,6 @@ formatError (Filename file, row, column) message = concat $ [file, ":", show row
 tellError :: (Filename, Int, Int) -> String -> Writer [String] ()
 tellError position = tell . (:[]) . formatError position
 
-data Pos a = Pos (Filename, Int, Int) a
+data Pos a = Pos (Filename, Int, Int) a deriving Eq
 
-newtype Filename = Filename String
+newtype Filename = Filename String deriving Eq

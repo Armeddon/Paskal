@@ -1,5 +1,5 @@
 module Paskal (interpret, Filename (..)) where
-import Control.Monad.Writer (runWriter)
+import Control.Monad.Writer (runWriter, execWriter)
 import Token
 import Lexer
 import Parser
@@ -16,8 +16,8 @@ printInvalidTokens = mapM_ $ putStrLn . \(Pos p t) -> formatError p $ "Invalid t
 interpretTokens :: [Pos Token] -> IO ()
 interpretTokens tokens = do
     let (ast, logs) = runWriter $ parse tokens
-        (ast', logs') = maybe (Nothing, []) (runWriter . analyze) ast
+        logs' = maybe [] (execWriter . analyze) ast
     mapM_ putStrLn logs
     mapM_ putStrLn logs'
-    _ <- sequenceA $ fmap execute ast'
+    _ <- sequenceA $ fmap execute ast
     return ()
