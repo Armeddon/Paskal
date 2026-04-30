@@ -1,0 +1,29 @@
+program Geometry;
+var geometry : integer;
+begin
+    if 1 = 2 then
+        geometry := 3 * 3 + 4 * 4 - 5 * 5
+    else
+        geometry := 2;
+    case geometry of
+    1 :
+        writeln(false);
+    0 :
+        writeln(true);
+    2 :
+        if true then writeln(2) else writeln(100)
+    endcase;
+    writeln(geometry = 0);
+    while geometry > 0 do begin
+        writeln(geometry);
+        geometry := geometry - 1;
+        case geometry of
+        1 :
+            writeln(false);
+        0 :
+            writeln(true);
+        2 :
+            if true then writeln(2) else writeln(100)
+        endcase
+    end
+end.

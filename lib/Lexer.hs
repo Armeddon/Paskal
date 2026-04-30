@@ -38,7 +38,7 @@ tokenizeWord input@((Pos pos _):_) = Pos pos $ case map (\(Pos _ c) -> c) input 
     "<>"      -> Right NotEqualOperator
     "<="      -> Right LessOrEqualOperator
     ">="      -> Right GreaterOrEqualOperator
-    "="       -> Right GreaterOrEqualOperator
+    "="       -> Right EqualOperator
     "+"       -> Right AddOperator
     "-"       -> Right SubtractOperator
     "or"      -> Right OrOperator

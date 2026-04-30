@@ -9,9 +9,11 @@ analyze (AST _ (Pos _ vars) (Pos _ ops)) = let
     varDefPositions = getVarDefPositions vars
     names = map fst tpes
     OperatorSection operators = ops
+    unpositionedTypes = map (\(f, Pos _ s) -> (f, s)) tpes
     in do
         checkVariableUniqueness varDefPositions
         checkUndeclaredIdentifiers names operators
+        checkAssignmentTypes unpositionedTypes operators
 
 getVarTypes :: VariableSection -> [(Name, Pos Type)]
 getVarTypes (VariableSection vars) = vars >>= \(names, tpe) -> [(n, tpe) | Pos _ n <- names]

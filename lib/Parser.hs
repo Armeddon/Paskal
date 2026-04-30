@@ -220,13 +220,8 @@ parseSwitchOperator (Pos pos CaseKeyword : rest) = do
                     variants <- parseSwitchVariantsRest rest''
                     case variants of
                         (Nothing, rest''') -> return (Nothing, rest''')
-                        (Just vars, Pos _ EndCaseKeyword : rest''') ->
+                        (Just vars, rest''') ->
                             return (Just . Pos pos . SwitchOperator expr $ var : vars, rest''')
-                        (Just vars, Pos pos' t : rest''') -> do
-                            tellError pos' $ "Expected the endcase keyword, found " ++ show t
-                            return (Just . Pos pos . SwitchOperator expr $ var : vars,
-                                    Pos pos' t : rest''')
-                        (Just _, []) -> return (Nothing, [])
         (Just expr, Pos pos' t : rest') -> do
             tellError pos' $ "Expected the of keyword, found " ++ show t
             variant <- parseSwitchVariant $ Pos pos' t : rest'
